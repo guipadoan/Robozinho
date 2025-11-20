@@ -1,3 +1,2 @@
 print ("hellow")
-print ("Eduardo é gay")
-
+print ("vamos ver samerda")
