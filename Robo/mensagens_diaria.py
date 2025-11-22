@@ -13,10 +13,10 @@ from googleapiclient.errors import HttpError
 
 # ==================== CONFIGURAÇÕES ====================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-SPREADSHEET_ID = '1lO3NH2PZQu216u8c42kkuC3t9zRje8zTNtCwmE-xtZ0'
+SPREADSHEET_ID = '16O04A4ERu3Twi7OQD6W0Zg9X7j_Uwit9KQcs8wAf2Tw'
 RANGE_NAME = 'Mensagens do dia!A1:G500'
 INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
-TEMPO_ESPERA_CARREGAR = 15  # tempo para carregar WhatsApp Web
+TEMPO_ESPERA_CARREGAR = 60  # tempo para carregar WhatsApp Web
 
 # ==================== AUTENTICAÇÃO GOOGLE ====================
 def autenticar_google():
