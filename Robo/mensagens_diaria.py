@@ -1,10 +1,7 @@
-import webbrowser
-import pyautogui
-import pyperclip
+import pywhatkit as kit
 from time import sleep
 import datetime
 import os
-from urllib.parse import quote
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -15,8 +12,7 @@ from googleapiclient.errors import HttpError
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_ID = '16O04A4ERu3Twi7OQD6W0Zg9X7j_Uwit9KQcs8wAf2Tw'
 RANGE_NAME = 'Mensagens do dia!A1:G500'
-INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
-TEMPO_ESPERA_CARREGAR = 60  # tempo para carregar WhatsApp Web
+INTERVALO_ENTRE_MENSAGENS = 60  # segundos entre cada envio
 
 # ==================== AUTENTICAÇÃO GOOGLE ====================
 def autenticar_google():
@@ -68,12 +64,9 @@ def buscar_dados_planilha(creds):
 # ==================== ENVIAR MENSAGEM ====================
 def enviar_mensagem(telefone, mensagem, nome=""):
     """
-    Envia mensagem usando webbrowser + pyautogui
+    Envia mensagem usando pywhatkit
     
-    Funciona assim:
-    1. Abre WhatsApp Web com o número
-    2. Aguarda carregar
-    3. Usa pyautogui para clicar e enviar
+    O pywhatkit abre o WhatsApp Web, digita a mensagem e envia automaticamente
     """
     try:
         # Limpa o número (remove espaços, traços, parênteses)
@@ -85,40 +78,19 @@ def enviar_mensagem(telefone, mensagem, nome=""):
         
         print(f"📤 Preparando envio para {nome} ({telefone_limpo})...")
         
-        # Monta a URL do WhatsApp Web
-        url = f'https://web.whatsapp.com/send?phone={telefone_limpo}&text={quote(mensagem)}'
-        
-        # Abre no navegador padrão
-        webbrowser.open(url)
-        
-        # Aguarda o WhatsApp Web carregar completamente
-        print(f"⏳ Aguardando {TEMPO_ESPERA_CARREGAR} segundos para carregar...")
-        sleep(TEMPO_ESPERA_CARREGAR)
-        
-        # Usa pyperclip para garantir que a mensagem está correta
-        # (às vezes a URL encoding pode dar problema com caracteres especiais)
-        pyperclip.copy(mensagem)
-        
-        # Clica no campo de mensagem (geralmente já está focado)
-        # e cola a mensagem novamente para garantir
-        pyautogui.click()  # Clica na tela para focar
-        sleep(0.5)
-        
-        # Pressiona Tab algumas vezes para garantir foco no campo de mensagem
-        # (caso o campo não esteja focado)
-        pyautogui.press('tab')
-        sleep(0.3)
-        
-        # Aperta Enter para enviar
-        pyautogui.press('enter')
-        sleep(2)
+        # Envia mensagem instantaneamente
+        # wait_time = tempo de espera antes de enviar (em segundos)
+        # tab_close = fecha a aba após enviar
+        # close_time = tempo antes de fechar a aba
+        kit.sendwhatmsg_instantly(
+            phone_no=f'+{telefone_limpo}',
+            message=mensagem,
+            wait_time=60,      # Aguarda 15 segundos para carregar WhatsApp Web
+            tab_close=True,    # Fecha a aba após enviar
+            close_time=5       # Aguarda 5 segundos antes de fechar (confirma envio)
+        )
         
         print(f"✅ Mensagem enviada para {nome} ({telefone})")
-        
-        # Fecha a aba (Ctrl+W)
-        pyautogui.hotkey('ctrl', 'w')
-        sleep(1)
-        
         return True
         
     except Exception as e:
@@ -141,18 +113,15 @@ def registrar_erro(nome, telefone, erro):
 # ==================== FUNÇÃO PRINCIPAL ====================
 def main():
     print("="*60)
-    print("🤖 ROBÔ DE ENVIO DE MENSAGENS - WhatsApp")
+    print("🤖 ROBÔ DE ENVIO DE MENSAGENS - WhatsApp (pywhatkit)")
     print("="*60)
     print("\n⚠️ ATENÇÃO:")
     print("   1. Certifique-se de estar LOGADO no WhatsApp Web")
     print("   2. O navegador será aberto automaticamente")
-    print("   3. NÃO mexa no mouse/teclado durante o envio")
-    print("   4. Posicione esta janela de forma que não atrapalhe")
+    print("   3. NÃO feche o navegador durante o processo")
     print("="*60)
     
-    input("\n✋ Pressione ENTER para começar em 5 segundos...")
-    print("⏳ Iniciando em 5 segundos...")
-    sleep(5)
+    input("\n✋ Pressione ENTER para começar...")
     
     # 1. Autenticar Google
     print("\n📊 Conectando ao Google Sheets...")
@@ -192,9 +161,8 @@ def main():
             registrar_erro(nome, telefone, "Falha no envio")
         
         # Pausa entre envios para evitar bloqueio do WhatsApp
-        if i < len(values) - 1:  # Não espera após a última mensagem
-            print(f"⏳ Aguardando {INTERVALO_ENTRE_MENSAGENS} segundos antes do próximo envio...")
-            sleep(INTERVALO_ENTRE_MENSAGENS)
+        print(f"⏳ Aguardando {INTERVALO_ENTRE_MENSAGENS} segundos antes do próximo envio...")
+        sleep(INTERVALO_ENTRE_MENSAGENS)
     
     # 4. Resumo
     print("\n" + "="*60)
