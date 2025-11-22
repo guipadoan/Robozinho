@@ -3,11 +3,15 @@ from time import sleep
 import datetime
 import os
 import json
+import pytz
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+
+# Configurar fuso horário de Brasília
+FUSO_HORARIO = pytz.timezone('America/Sao_Paulo')
 
 # ==================== CONFIGURAÇÕES ====================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
@@ -15,9 +19,9 @@ SPREADSHEET_ID = '1PEr-cjNy99QtJWnVAPPwR43NkAesHXQLZSF0QukcLW4'
 RANGE_NAME = 'Robozinho!A1:D10000'
 INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
 
-# Configurações de horário
-HORA_INICIO = 10   # Começa às 10h
-HORA_FIM = 22     # Para às 22h
+# Configurações de horário (Horário de Brasília)
+HORA_INICIO = 8   # Começa às 8h
+HORA_FIM = 22     # Para às 22h (não às 21h!)
 
 # Arquivo para salvar progresso
 CHECKPOINT_FILE = "progresso.json"
@@ -46,9 +50,10 @@ def salvar_progresso(linha_atual):
     """
     Salva o progresso atual (última linha processada)
     """
+    agora_brasilia = datetime.datetime.now(FUSO_HORARIO)
     dados = {
         'ultima_linha': linha_atual,
-        'data_hora': datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        'data_hora': agora_brasilia.strftime("%d/%m/%Y %H:%M:%S")
     }
     with open(CHECKPOINT_FILE, 'w') as f:
         json.dump(dados, f, indent=2)
@@ -64,29 +69,41 @@ def limpar_progresso():
 
 def esta_no_horario_permitido():
     """
-    Verifica se está dentro do horário permitido (8h às 21h)
+    Verifica se está dentro do horário permitido (8h às 22h) - Horário de Brasília
     """
-    hora_atual = datetime.datetime.now().hour
-    return HORA_INICIO <= hora_atual < HORA_FIM
+    # Pega hora atual no fuso de Brasília
+    agora_brasilia = datetime.datetime.now(FUSO_HORARIO)
+    hora_atual = agora_brasilia.hour
+    
+    # Debug - mostra hora atual
+    print(f"🕐 Hora atual (Brasília): {agora_brasilia.strftime('%H:%M:%S')}")
+    
+    esta_no_horario = HORA_INICIO <= hora_atual < HORA_FIM
+    
+    if not esta_no_horario:
+        print(f"⚠️ Fora do horário permitido ({HORA_INICIO}h - {HORA_FIM}h)")
+    
+    return esta_no_horario
 
 def aguardar_proximo_horario():
     """
-    Aguarda até o próximo horário permitido (8h do próximo dia)
+    Aguarda até o próximo horário permitido (8h do próximo dia) - Horário de Brasília
     """
-    agora = datetime.datetime.now()
+    agora = datetime.datetime.now(FUSO_HORARIO)
     
-    # Se já passou das 21h, aguarda até 8h do próximo dia
+    # Se já passou da hora de fim, aguarda até hora de início do próximo dia
     if agora.hour >= HORA_FIM:
-        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0) + datetime.timedelta(days=1)
+        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0, microsecond=0) + datetime.timedelta(days=1)
     else:
-        # Se for antes das 8h, aguarda até 8h de hoje
-        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0)
+        # Se for antes da hora de início, aguarda até hora de início de hoje
+        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0, microsecond=0)
     
     tempo_espera = (proximo_inicio - agora).total_seconds()
     
     print(f"\n⏰ Fora do horário permitido ({HORA_INICIO}h - {HORA_FIM}h)")
+    print(f"🕐 Hora atual (Brasília): {agora.strftime('%d/%m/%Y %H:%M:%S')}")
     print(f"⏳ Aguardando até {proximo_inicio.strftime('%d/%m/%Y %H:%M')}")
-    print(f"   (aproximadamente {int(tempo_espera / 3600)} horas)")
+    print(f"   (aproximadamente {int(tempo_espera / 3600)} horas e {int((tempo_espera % 3600) / 60)} minutos)")
     
     sleep(tempo_espera)
 
@@ -166,7 +183,8 @@ def enviar_mensagem(telefone, mensagem, nome=""):
 # ==================== REGISTRAR ERRO ====================
 def registrar_erro(nome, telefone, erro):
     """Registra erros em arquivo CSV"""
-    data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    agora_brasilia = datetime.datetime.now(FUSO_HORARIO)
+    data_hora = agora_brasilia.strftime("%d/%m/%Y %H:%M:%S")
     
     if not os.path.exists('erros.csv'):
         with open('erros.csv', 'w', encoding='utf-8') as arquivo:
@@ -232,7 +250,7 @@ def main():
             # Extrai dados (ajuste os índices conforme sua planilha)
             telefone = row[3].strip() if len(row) > 3 else ""
             nome = row[2].strip() if len(row) > 2 else "Sem nome"
-            mensagem = row[1] if len(row) > 1 else ""  # Ajuste o índice da mensagem
+            mensagem = row[4] if len(row) > 1 else ""  # Ajuste o índice da mensagem
             
             # Valida dados obrigatórios
             if not telefone or not mensagem:

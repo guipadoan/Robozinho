@@ -1,0 +1,19 @@
+/root/Robo/Robo/venv/lib/python3.10/site-packages/google/api_core/_python_version_support.py:266: FutureWarning: You are using a Python version (3.10.12) which Google will stop supporting in new releases of google.api_core once it reaches its end of life (2026-10-04). Please upgrade to the latest Python version, or at least Python 3.11, to continue receiving updates for google.api_core past that date.
+  warnings.warn(message, FutureWarning)
+======================================================================
+🤖 ROBÔ DE ENVIO DE MENSAGENS - WhatsApp com Checkpoint
+======================================================================
+
+⏰ Horário de funcionamento: 10h às 22h
+💾 Sistema de checkpoint ativo (continua de onde parou)
+
+⚠️ ATENÇÃO:
+   1. Certifique-se de estar LOGADO no WhatsApp Web
+   2. O robô vai parar às 21h e retomar às 8h automaticamente
+   3. Mantenha o script rodando (use screen ou deixe o terminal aberto)
+======================================================================
+
+✋ Pressione ENTER para começar...
+
+⚠️ Processo interrompido pelo usuário.
+💾 O progresso foi salvo. Execute novamente para continuar de onde parou.
