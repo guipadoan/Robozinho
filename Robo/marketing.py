@@ -16,8 +16,8 @@ RANGE_NAME = 'Robozinho!A1:D10000'
 INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
 
 # Configurações de horário
-HORA_INICIO = 8   # Começa às 8h
-HORA_FIM = 21     # Para às 21h
+HORA_INICIO = 10   # Começa às 10h
+HORA_FIM = 22     # Para às 22h
 
 # Arquivo para salvar progresso
 CHECKPOINT_FILE = "progresso.json"
