@@ -17,7 +17,7 @@ FUSO_HORARIO = pytz.timezone('America/Sao_Paulo')
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_ID = '1PEr-cjNy99QtJWnVAPPwR43NkAesHXQLZSF0QukcLW4'
 RANGE_NAME = 'Robozinho!A1:E10000'
-INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
+INTERVALO_ENTRE_MENSAGENS = 10  # segundos entre cada envio
 
 # Configurações de horário (Horário de Brasília)
 HORA_INICIO = 8   # Começa às 8h
@@ -168,7 +168,7 @@ def enviar_mensagem(telefone, mensagem, nome=""):
         kit.sendwhatmsg_instantly(
             phone_no=f'+{telefone_limpo}',
             message=mensagem,
-            wait_time=45,
+            wait_time=60,
             tab_close=True,
             close_time=5
         )
