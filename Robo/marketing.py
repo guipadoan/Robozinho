@@ -2,6 +2,7 @@ import pywhatkit as kit
 from time import sleep
 import datetime
 import os
+import json
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -10,9 +11,84 @@ from googleapiclient.errors import HttpError
 
 # ==================== CONFIGURAÇÕES ====================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
-SPREADSHEET_ID ='1PEr-cjNy99QtJWnVAPPwR43NkAesHXQLZSF0QukcLW4'
-RANGE_NAME = 'Robozinho!A1:G500'
-INTERVALO_ENTRE_MENSAGENS = 60  # segundos entre cada envio
+SPREADSHEET_ID = '1PEr-cjNy99QtJWnVAPPwR43NkAesHXQLZSF0QukcLW4'
+RANGE_NAME = 'Robozinho!A1:D10000'
+INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
+
+# Configurações de horário
+HORA_INICIO = 8   # Começa às 8h
+HORA_FIM = 21     # Para às 21h
+
+# Arquivo para salvar progresso
+CHECKPOINT_FILE = "progresso.json"
+
+# ==================== GERENCIAMENTO DE CHECKPOINT ====================
+def carregar_progresso():
+    """
+    Carrega o progresso salvo (última linha processada)
+    Retorna a linha de onde deve continuar
+    """
+    if os.path.exists(CHECKPOINT_FILE):
+        try:
+            with open(CHECKPOINT_FILE, 'r') as f:
+                dados = json.load(f)
+                ultima_linha = dados.get('ultima_linha', 5)
+                print(f"📍 Checkpoint encontrado! Continuando da linha {ultima_linha + 1}")
+                return ultima_linha + 1  # Próxima linha a processar
+        except:
+            print("⚠️ Erro ao ler checkpoint. Começando do início.")
+            return 5
+    else:
+        print("📝 Nenhum checkpoint encontrado. Começando do início (linha 6).")
+        return 5
+
+def salvar_progresso(linha_atual):
+    """
+    Salva o progresso atual (última linha processada)
+    """
+    dados = {
+        'ultima_linha': linha_atual,
+        'data_hora': datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    }
+    with open(CHECKPOINT_FILE, 'w') as f:
+        json.dump(dados, f, indent=2)
+    print(f"💾 Progresso salvo: linha {linha_atual}")
+
+def limpar_progresso():
+    """
+    Remove o arquivo de checkpoint (quando terminar todas as mensagens)
+    """
+    if os.path.exists(CHECKPOINT_FILE):
+        os.remove(CHECKPOINT_FILE)
+        print("✅ Checkpoint removido - todas as mensagens foram enviadas!")
+
+def esta_no_horario_permitido():
+    """
+    Verifica se está dentro do horário permitido (8h às 21h)
+    """
+    hora_atual = datetime.datetime.now().hour
+    return HORA_INICIO <= hora_atual < HORA_FIM
+
+def aguardar_proximo_horario():
+    """
+    Aguarda até o próximo horário permitido (8h do próximo dia)
+    """
+    agora = datetime.datetime.now()
+    
+    # Se já passou das 21h, aguarda até 8h do próximo dia
+    if agora.hour >= HORA_FIM:
+        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0) + datetime.timedelta(days=1)
+    else:
+        # Se for antes das 8h, aguarda até 8h de hoje
+        proximo_inicio = agora.replace(hour=HORA_INICIO, minute=0, second=0)
+    
+    tempo_espera = (proximo_inicio - agora).total_seconds()
+    
+    print(f"\n⏰ Fora do horário permitido ({HORA_INICIO}h - {HORA_FIM}h)")
+    print(f"⏳ Aguardando até {proximo_inicio.strftime('%d/%m/%Y %H:%M')}")
+    print(f"   (aproximadamente {int(tempo_espera / 3600)} horas)")
+    
+    sleep(tempo_espera)
 
 # ==================== AUTENTICAÇÃO GOOGLE ====================
 def autenticar_google():
@@ -63,31 +139,21 @@ def buscar_dados_planilha(creds):
 
 # ==================== ENVIAR MENSAGEM ====================
 def enviar_mensagem(telefone, mensagem, nome=""):
-    """
-    Envia mensagem usando pywhatkit
-    
-    O pywhatkit abre o WhatsApp Web, digita a mensagem e envia automaticamente
-    """
+    """Envia mensagem usando pywhatkit"""
     try:
-        # Limpa o número (remove espaços, traços, parênteses)
         telefone_limpo = ''.join(filter(str.isdigit, telefone))
         
-        # Adiciona código do país se não tiver (Brasil = +55)
         if not telefone_limpo.startswith('55'):
             telefone_limpo = '55' + telefone_limpo
         
         print(f"📤 Preparando envio para {nome} ({telefone_limpo})...")
         
-        # Envia mensagem instantaneamente
-        # wait_time = tempo de espera antes de enviar (em segundos)
-        # tab_close = fecha a aba após enviar
-        # close_time = tempo antes de fechar a aba
         kit.sendwhatmsg_instantly(
             phone_no=f'+{telefone_limpo}',
             message=mensagem,
-            wait_time=60,      # Aguarda 15 segundos para carregar WhatsApp Web
-            tab_close=True,    # Fecha a aba após enviar
-            close_time=5       # Aguarda 5 segundos antes de fechar (confirma envio)
+            wait_time=45,
+            tab_close=True,
+            close_time=5
         )
         
         print(f"✅ Mensagem enviada para {nome} ({telefone})")
@@ -102,7 +168,6 @@ def registrar_erro(nome, telefone, erro):
     """Registra erros em arquivo CSV"""
     data_hora = datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     
-    # Cria o arquivo com cabeçalho se não existir
     if not os.path.exists('erros.csv'):
         with open('erros.csv', 'w', encoding='utf-8') as arquivo:
             arquivo.write('Data/Hora,Nome,Telefone,Erro\n')
@@ -112,70 +177,103 @@ def registrar_erro(nome, telefone, erro):
 
 # ==================== FUNÇÃO PRINCIPAL ====================
 def main():
-    print("="*60)
-    print("🤖 ROBÔ DE ENVIO DE MENSAGENS - WhatsApp (pywhatkit)")
-    print("="*60)
+    print("="*70)
+    print("🤖 ROBÔ DE ENVIO DE MENSAGENS - WhatsApp com Checkpoint")
+    print("="*70)
+    print(f"\n⏰ Horário de funcionamento: {HORA_INICIO}h às {HORA_FIM}h")
+    print("💾 Sistema de checkpoint ativo (continua de onde parou)")
     print("\n⚠️ ATENÇÃO:")
     print("   1. Certifique-se de estar LOGADO no WhatsApp Web")
-    print("   2. O navegador será aberto automaticamente")
-    print("   3. NÃO feche o navegador durante o processo")
-    print("="*60)
+    print("   2. O robô vai parar às 21h e retomar às 8h automaticamente")
+    print("   3. Mantenha o script rodando (use screen ou deixe o terminal aberto)")
+    print("="*70)
     
     input("\n✋ Pressione ENTER para começar...")
     
-    # 1. Autenticar Google
-    print("\n📊 Conectando ao Google Sheets...")
-    creds = autenticar_google()
-    
-    # 2. Buscar dados
-    values = buscar_dados_planilha(creds)
-    if not values:
-        return
-    
-    # 3. Enviar mensagens
-    print("\n📤 Iniciando envio de mensagens...\n")
-    enviadas = 0
-    erros_count = 0
-    
-    # Começa na linha 5 (índice 5, linha 6 da planilha)
-    for i in range(5, len(values)):
-        row = values[i]
-        
-        # Extrai dados com segurança
-        telefone = row[0].strip() if len(row) > 0 else ""
-        nome = row[1].strip() if len(row) > 1 else "Sem nome"
-        mensagem = row[4] if len(row) > 4 else ""
-        
-        # Valida dados obrigatórios
-        if not telefone or not mensagem:
-            print(f"⚠️ Linha {i+1}: Dados incompletos - Telefone: {telefone}, Mensagem: {'Sim' if mensagem else 'Não'}")
+    # Loop principal que roda continuamente
+    while True:
+        # Verifica se está no horário permitido
+        if not esta_no_horario_permitido():
+            aguardar_proximo_horario()
             continue
         
-        # Envia mensagem
-        sucesso = enviar_mensagem(telefone, mensagem, nome)
+        # Autenticar Google
+        print("\n📊 Conectando ao Google Sheets...")
+        creds = autenticar_google()
         
-        if sucesso:
-            enviadas += 1
-        else:
-            erros_count += 1
-            registrar_erro(nome, telefone, "Falha no envio")
+        # Buscar dados
+        values = buscar_dados_planilha(creds)
+        if not values:
+            print("⚠️ Nenhum dado na planilha. Aguardando próximo dia...")
+            aguardar_proximo_horario()
+            continue
         
-        # Pausa entre envios para evitar bloqueio do WhatsApp
-        print(f"⏳ Aguardando {INTERVALO_ENTRE_MENSAGENS} segundos antes do próximo envio...")
-        sleep(INTERVALO_ENTRE_MENSAGENS)
-    
-    # 4. Resumo
-    print("\n" + "="*60)
-    print("📊 RESUMO DO ENVIO")
-    print("="*60)
-    print(f"✅ Mensagens enviadas com sucesso: {enviadas}")
-    print(f"❌ Mensagens com erro: {erros_count}")
-    print(f"📝 Total processado: {enviadas + erros_count}")
-    
-    if erros_count > 0:
-        print(f"\n⚠️ Verifique o arquivo 'erros.csv' para detalhes dos erros")
-    
-    print("\n✅ Processo finalizado!")
+        # Carregar progresso (de onde parou)
+        linha_inicial = carregar_progresso()
+        
+        # Enviar mensagens
+        print("\n📤 Iniciando envio de mensagens...\n")
+        enviadas = 0
+        erros_count = 0
+        
+        # Processa da linha salva até o final
+        for i in range(linha_inicial, len(values)):
+            # IMPORTANTE: Verifica horário antes de cada envio
+            if not esta_no_horario_permitido():
+                print(f"\n🕐 Horário limite atingido ({HORA_FIM}h)!")
+                print(f"💾 Salvando progresso na linha {i}...")
+                salvar_progresso(i)
+                print("😴 Pausando até amanhã às 8h...")
+                aguardar_proximo_horario()
+                break  # Sai do loop e reinicia do checkpoint amanhã
+            
+            row = values[i]
+            
+            # Extrai dados (ajuste os índices conforme sua planilha)
+            telefone = row[3].strip() if len(row) > 3 else ""
+            nome = row[2].strip() if len(row) > 2 else "Sem nome"
+            mensagem = row[1] if len(row) > 1 else ""  # Ajuste o índice da mensagem
+            
+            # Valida dados obrigatórios
+            if not telefone or not mensagem:
+                print(f"⚠️ Linha {i+1}: Dados incompletos")
+                salvar_progresso(i)  # Salva mesmo se pular
+                continue
+            
+            # Envia mensagem
+            print(f"\n📍 Processando linha {i+1} de {len(values)}")
+            sucesso = enviar_mensagem(telefone, mensagem, nome)
+            
+            if sucesso:
+                enviadas += 1
+            else:
+                erros_count += 1
+                registrar_erro(nome, telefone, "Falha no envio")
+            
+            # Salva progresso após cada envio
+            salvar_progresso(i)
+            
+            # Pausa entre envios
+            print(f"⏳ Aguardando {INTERVALO_ENTRE_MENSAGENS}s antes do próximo...")
+            sleep(INTERVALO_ENTRE_MENSAGENS)
+        
+        # Se chegou aqui, terminou todas as linhas!
+        if i >= len(values) - 1:
+            print("\n" + "="*70)
+            print("🎉 TODAS AS MENSAGENS FORAM ENVIADAS!")
+            print("="*70)
+            print(f"✅ Mensagens enviadas: {enviadas}")
+            print(f"❌ Erros: {erros_count}")
+            print(f"📝 Total processado: {enviadas + erros_count}")
+            
+            if erros_count > 0:
+                print(f"\n⚠️ Verifique 'erros.csv' para detalhes dos erros")
+            
+            # Remove checkpoint pois terminou
+            limpar_progresso()
+            
+            print("\n✅ Processo totalmente finalizado!")
+            break  # Sai do loop principal e encerra o programa
 
 # ==================== EXECUTAR ====================
 if __name__ == "__main__":
@@ -183,5 +281,7 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\n\n⚠️ Processo interrompido pelo usuário.")
+        print("💾 O progresso foi salvo. Execute novamente para continuar de onde parou.")
     except Exception as e:
         print(f"\n\n❌ Erro crítico: {e}")
+        print("💾 O progresso foi salvo. Execute novamente para continuar de onde parou.")
