@@ -16,7 +16,7 @@ FUSO_HORARIO = pytz.timezone('America/Sao_Paulo')
 # ==================== CONFIGURAÇÕES ====================
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 SPREADSHEET_ID = '1PEr-cjNy99QtJWnVAPPwR43NkAesHXQLZSF0QukcLW4'
-RANGE_NAME = 'Robozinho!A1:D10000'
+RANGE_NAME = 'Robozinho!A1:E10000'
 INTERVALO_ENTRE_MENSAGENS = 20  # segundos entre cada envio
 
 # Configurações de horário (Horário de Brasília)
