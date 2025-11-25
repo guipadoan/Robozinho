@@ -169,10 +169,21 @@ def enviar_mensagem(telefone, mensagem, nome=""):
             phone_no=f'+{telefone_limpo}',
             message=mensagem,
             wait_time=60,
-            tab_close=True,
+            tab_close=False,
             close_time=5
         )
-        
+       
+        # Aguarda para garantir de enviou
+        sleep(3)
+
+        #Fecha a aba manualmente
+        try:
+            import pyautogui
+            pyautogui.hotkey('ctrl','w')
+            sleep(0.5)
+
+            #Se aparecer uma caixa de diálogo
+            pyautogui.hotkey('enter')
         print(f"✅ Mensagem enviada para {nome} ({telefone})")
         return True
         
